@@ -181,12 +181,12 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None):
 
     # 5. Patch topiary for Colab (mpirun --allow-run-as-root)
     # We do this before installing topiary so the patched files are installed.
-    patch_cmd = """
+    patch_cmd = r"""
     # add --allow-run-as-root to mpirun calls
     files_to_patch="topiary/src/topiary/generax/_generax.py topiary/src/topiary/generax/_reconcile_bootstrap.py topiary/src/topiary/_private/mpi/mpi.py"
     for x in ${files_to_patch}; do
         if [ -f ${x} ]; then
-            sed -i 's/\\[\\"mpirun\\"/\\[\\"mpirun\\",\\"--allow-run-as-root\\"/g' ${x}
+            sed -i 's/\[\"mpirun\"/\[\"mpirun\",\"--allow-run-as-root\"/g' ${x}
         fi
     done
     """
