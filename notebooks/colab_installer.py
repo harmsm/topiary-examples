@@ -12,7 +12,9 @@ import urllib.request
 urllib.request.urlretrieve(SCRIPT_URL,"colab_installer.py")
 
 import colab_installer
-colab_installer.install_topiary(install_raxml,install_generax)
+colab_installer.install_topiary(install_raxml=True,
+                                install_generax=True,
+                                bin_cache="/content/gdrive/MyDrive/topiary_bin")
 #-------------------------------------------------------------------------------
 
 Cell #2:
@@ -31,12 +33,9 @@ colab_installer.mount_google_drive(google_drive_directory)
 #-------------------------------------------------------------------------------
 
 
-Note: this assumes python 3.8 (the current colab default, 2022/12/07). If colab
-updates from python 3.8, change:
-
-    1. Miniconda3-py38_4.12.0-Linux-x86_64.sh
-    2. conda install --channel defaults conda python=3.8 --yes
-    3. Refs to /usr/local/lib/python3.8/site-packages
+Note: this script uses condacolab to set up a Python 3.12 environment (2025/03/16). 
+If colab updates from python 3.12, the site-packages path in initialize_environment
+may need to be updated.
 
 """
 
@@ -46,73 +45,9 @@ import subprocess
 import time
 import os
 import re
+import shutil
 
-miniconda = \
-"""
-unset PYTHONPATH
-MINICONDA_INSTALLER_SCRIPT=Miniconda3-py38_4.12.0-Linux-x86_64.sh
-MINICONDA_PREFIX=/usr/local
-wget https://repo.anaconda.com/miniconda/$MINICONDA_INSTALLER_SCRIPT --quiet
-chmod +x $MINICONDA_INSTALLER_SCRIPT
-./$MINICONDA_INSTALLER_SCRIPT -b -f -p $MINICONDA_PREFIX
-conda install --channel defaults conda python=3.8 --yes
-conda update --channel defaults --all --yes
-"""
-
-conda_packages = \
-"""
-conda config --add channels conda-forge
-conda config --add channels bioconda
-conda install --channel defaults numpy pandas xlrd openpyxl matplotlib "muscle>=5.0" blast --yes --strict-channel-priority
-"""
-
-pip_packages = \
-"""
-# Install ghostscript binary (so toyplot doesn't complain)
-wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs1000/ghostscript-10.0.0-linux-x86_64.tgz
-tar -zxf ghostscript-10.0.0-linux-x86_64.tgz
-mv ghostscript-10.0.0-linux-x86_64/gs-1000-linux-x86_64 /usr/local/bin/gs
-
-/usr/bin/python3 -m pip install mpi4py opentree ete3 dendropy biopython pastml toytree toyplot 
-"""
-
-raxml = \
-"""
-wget https://github.com/amkozlov/raxml-ng/releases/download/1.1.0/raxml-ng_v1.1.0_linux_x86_64.zip
-unzip raxml-ng_v1.1.0_linux_x86_64.zip
-cp raxml-ng /usr/local/bin
-"""
-
-generax = \
-"""
-apt-get install flex bison libgmp3-dev
-rm -rf GeneRax
-git clone --recursive https://github.com/BenoitMorel/GeneRax
-cd GeneRax
-./install.sh
-cp build/bin/generax /usr/local/bin
-cd ..
-"""
-
-topiary = \
-"""
-rm -rf topiary
-git clone --branch main https://github.com/harmsm/topiary.git
-
-cd topiary
-
-# add --allow-run-as-root to mpirun calls
-for x in `echo "./topiary/generax/_generax.py ./topiary/generax/_reconcile_bootstrap.py ./topiary/_private/mpi/mpi.py"`; do
-    sed -i 's/\[\"mpirun\",/\[\"mpirun\",\"--allow-run-as-root\",/g' ${x}
-done
-
-/usr/bin/python3 -m pip install . -vv
-cd ..
-"""
-
-
-
-def _run_install_cmd(bash_to_run,description):
+def _run_install_cmd(bash_to_run, description):
     """
     Run an installation command.
 
@@ -122,112 +57,203 @@ def _run_install_cmd(bash_to_run,description):
         description of what is being done
     """
 
-    no_space = re.sub(" ","_",description)
+    no_space = re.sub(" ", "_", description)
     status_file = f"/content/software/{no_space}.installed"
 
     if os.path.isfile(status_file):
         print(f"{description} already installed.")
         return
 
+    os.makedirs("software", exist_ok=True)
     os.chdir("software")
 
-    print(f"Installing {description}... ",end="",flush=True)
-    f = open(f"{no_space}_tmp-script.sh","w")
+    print(f"Installing {description}... ", end="", flush=True)
+    f = open(f"{no_space}_tmp-script.sh", "w")
     f.write(bash_to_run)
     f.close()
 
-    result = subprocess.run(["bash",f"{no_space}_tmp-script.sh"],
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    text=True)
+    result = subprocess.run(["bash", f"{no_space}_tmp-script.sh"],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             text=True)
     
     if result.returncode != 0:
-        print(result.stdout,flush=True)
-        print(result.stderr,flush=True)
-        raise RuntimeError("Installation failed!")
+        print("\nFailed!", flush=True)
+        print(result.stdout, flush=True)
+        print(result.stderr, flush=True)
+        raise RuntimeError(f"Installation of {description} failed!")
 
-    
-    f = open(f"{no_space}_stdout.txt","w")
+    f = open(f"{no_space}_stdout.txt", "w")
     f.write(result.stdout)
     f.close()
 
-    f = open(f"{no_space}_stderr.txt","w")
+    f = open(f"{no_space}_stderr.txt", "w")
     f.write(result.stderr)
     f.close()
 
     os.chdir("..")
 
-    f = open(status_file,'w')
+    f = open(status_file, 'w')
     f.write("Installed\n")
     f.close()
     
-    print("Complete.",flush=True)
+    print("Complete.", flush=True)
 
 
-def install_topiary(install_raxml,install_generax):
+def install_topiary(install_raxml=True, install_generax=True, bin_cache=None):
+    """
+    Install topiary and its dependencies.
+
+    install_raxml : bool, default=True
+        whether to install raxml-ng
+    install_generax : bool, default=True
+        whether to install generax
+    bin_cache : str, optional
+        path to a directory (e.g. on Google Drive) to store and retrieve 
+        pre-compiled binaries for raxml-ng and generax.
+    """
 
     os.chdir("/content/")
 
-    description_list = ["miniconda","conda packages","pip packages"]
-                    
-    cmd_list = [miniconda,conda_packages,pip_packages]
+    # 1. condacolab setup
+    try:
+        import condacolab
+        condacolab.check()
+    except (ImportError, Exception):
+        print("Initializing condacolab. This will restart the kernel.", flush=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "condacolab"], check=True)
+        import condacolab
+        condacolab.install()
+        return
 
+    # 2. Clone topiary to get environment.yml and compilation scripts
+    topiary_clone = """
+    if [ -d topiary ]; then
+        rm -rf topiary
+    fi
+    git clone https://github.com/harmsm/topiary.git
+    """
+    
+    # 3. Use environment.yml to install dependencies
+    # condacolab environment is 'base'
+    env_install = """
+    mamba env update -n base -f topiary/environment.yml
+    mamba install -c conda-forge ghostscript cmake -y
+    """
+
+    # 4. Binary handling logic
+    bin_dir = "/usr/local/bin"
+    
+    raxml_cmd = ""
     if install_raxml:
-        description_list.append("raxml-ng")
-        cmd_list.append(raxml)
+        target = f"{bin_dir}/raxml-ng"
+        if bin_cache and os.path.exists(os.path.join(bin_cache, "raxml-ng")):
+            print("Found cached raxml-ng. Using it.")
+            shutil.copy(os.path.join(bin_cache, "raxml-ng"), target)
+            os.chmod(target, 0o755)
+        else:
+            raxml_cmd = f"""
+            cd topiary/dependencies
+            bash compile-raxml-ng.sh
+            cd ../..
+            """
+            if bin_cache:
+                raxml_cmd += f"mkdir -p {bin_cache}\n"
+                raxml_cmd += f"cp {target} {bin_cache}/raxml-ng\n"
 
+    generax_cmd = ""
     if install_generax:
-        description_list.append("generax")
-        cmd_list.append(generax)
+        target = f"{bin_dir}/generax"
+        if bin_cache and os.path.exists(os.path.join(bin_cache, "generax")):
+            print("Found cached generax. Using it.")
+            shutil.copy(os.path.join(bin_cache, "generax"), target)
+            os.chmod(target, 0o755)
+        else:
+            generax_cmd = """
+            apt-get install -y flex bison libgmp3-dev
+            cd topiary/dependencies
+            bash compile-generax.sh
+            cd ../..
+            """
+            if bin_cache:
+                generax_cmd += f"mkdir -p {bin_cache}\n"
+                generax_cmd += f"cp {target} {bin_cache}/generax\n"
 
-    description_list.append("topiary")
-    cmd_list.append(topiary)
+    # 5. Patch topiary for Colab (mpirun --allow-run-as-root)
+    # We do this before installing topiary so the patched files are installed.
+    patch_cmd = """
+    # add --allow-run-as-root to mpirun calls
+    files_to_patch="topiary/src/topiary/generax/_generax.py topiary/src/topiary/generax/_reconcile_bootstrap.py topiary/src/topiary/_private/mpi/mpi.py"
+    for x in ${files_to_patch}; do
+        if [ -f ${x} ]; then
+            sed -i 's/\\[\\"mpirun\\"/\\[\\"mpirun\\",\\"--allow-run-as-root\\"/g' ${x}
+        fi
+    done
+    """
 
-    print("Setting up environment.",flush=True)
+    # 6. Install topiary itself
+    topiary_install = """
+    cd topiary
+    pip install . -vv
+    cd ..
+    """
 
-    # Make software directory (if not already there)
-    os.system("mkdir -p software")
+    print("Setting up environment.", flush=True)
 
-    # Add conda path to the current python session
-    to_append = "/usr/local/lib/python3.8/site-packages"
-    if to_append not in sys.path:
-        sys.path.append(to_append)
+    # List of commands to run
+    description_list = ["cloning topiary", "conda dependencies"]
+    cmd_list = [topiary_clone, env_install]
 
-    # Make sure that any new python session that spools up during the installations
-    # has the correct site packages. 
-    os.environ["PYTHONSTARTUP"] = "/content/software/python_startup.py"
-    f = open("/content/software/python_startup.py","w")
-    f.write("import sys\n")
-    f.write("sys.path.append('/usr/local/lib/python3.8/site-packages')\n")
-    f.close()
+    if raxml_cmd != "":
+        description_list.append("compiling raxml-ng")
+        cmd_list.append(raxml_cmd)
+    
+    if generax_cmd != "":
+        description_list.append("compiling generax")
+        cmd_list.append(generax_cmd)
 
+    description_list.append("patching topiary")
+    cmd_list.append(patch_cmd)
+
+    description_list.append("installing topiary")
+    cmd_list.append(topiary_install)
 
     # Install each package
     pbar = tqdm(range(len(cmd_list)))
     for i in pbar:
-        _run_install_cmd(cmd_list[i],description_list[i])
-
-        # Update status bar
+        _run_install_cmd(cmd_list[i], description_list[i])
         pbar.refresh()
         time.sleep(0.5)
         
-    # This sleep step makes sure things are done writing to the display before
-    # reset
+    print("\nInstallation complete! Restarting runtime.", flush=True)
     time.sleep(2)
     os._exit(0)
 
 
 def initialize_environment():
+    """
+    Initialize environment variables for topiary in Colab.
+    """
         
     os.environ["PYTHONPATH"] = ""
-    os.environ["PYTHONSTARTUP"] = "/content/software/python_startup.py"
     os.environ["TOPIARY_MAX_SLOTS"] = "1"
 
-    to_append = '/usr/local/lib/python3.8/site-packages'
+    # condacolab handles most of this, but we ensure site-packages is in path
+    # just in case, and for older notebook versions. 
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    to_append = f'/usr/local/lib/python{py_version}/site-packages'
     if to_append not in sys.path:
         sys.path.append(to_append)
 
+    print("Environment initialized.")
+
 def mount_google_drive(google_drive_directory):
+    """
+    Mount Google Drive and change directory to a specific project folder.
+
+    google_drive_directory : str
+        path relative to 'My Drive' to use as working directory.
+    """
 
     google_drive_directory = google_drive_directory.strip()
     if google_drive_directory != "":
@@ -237,7 +263,7 @@ def mount_google_drive(google_drive_directory):
         drive.mount('/content/gdrive/')
 
         working_dir = f"/content/gdrive/MyDrive/{google_drive_directory}"
-        os.system(f"mkdir -p {working_dir}")
+        os.makedirs(working_dir, exist_ok=True)
         os.chdir(working_dir)
     
     print(f"Working directory: {os.getcwd()}")
