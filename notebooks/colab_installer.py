@@ -137,8 +137,10 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None):
     # 3. Use environment.yml to install dependencies
     # condacolab environment is 'base'
     env_install = """
-    mamba env update -n base -f topiary/environment.yml -y --quiet
-    mamba install -c conda-forge ghostscript cmake -y --quiet
+    unset PYTHONPATH
+    rm -f /usr/local/conda-meta/pinned
+    mamba env update -n base -f topiary/environment.yml --quiet
+    mamba install --yes --quiet -c conda-forge ghostscript cmake
     """
 
     # 4. Binary handling logic
