@@ -137,8 +137,8 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None):
     # 3. Use environment.yml to install dependencies
     # condacolab environment is 'base'
     env_install = """
-    mamba env update -n base -f topiary/environment.yml
-    mamba install -c conda-forge ghostscript cmake -y
+    mamba env update -n base -f topiary/environment.yml -y --quiet
+    mamba install -c conda-forge ghostscript cmake -y --quiet
     """
 
     # 4. Binary handling logic
@@ -194,14 +194,14 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None):
     # 6. Install topiary itself
     topiary_install = """
     cd topiary
-    pip install . -vv
+    pip install . -y -vv
     cd ..
     """
 
     print("Setting up environment.", flush=True)
 
     # List of commands to run
-    description_list = ["cloning topiary", "conda dependencies"]
+    description_list = ["cloning topiary", "conda packages"]
     cmd_list = [topiary_clone, env_install]
 
     if raxml_cmd != "":
