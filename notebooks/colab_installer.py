@@ -114,6 +114,10 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # We use --no-cluster and --yes for non-interactive mode.
     # We use --keep-existing to use the binaries we seeded from cache.
     install_cmd = "cd topiary && bash install.sh --name base --no-cluster --yes --keep-existing"
+    if not install_raxml:
+        install_cmd += " --no-raxml"
+    if not install_generax:
+        install_cmd += " --no-generax"
     if ncbi_key:
         install_cmd += f" --ncbi-key {ncbi_key}"
     
