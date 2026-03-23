@@ -140,13 +140,14 @@ def initialize_environment():
     Initialize environment variables for topiary in Colab.
     """
     os.environ["TOPIARY_MAX_SLOTS"] = "1"
-    # 1. Ensure site-packages is in path
+    
+    # Ensure site-packages is in path (condacolab usually handles this after restart)
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     to_append = f'/usr/local/lib/python{py_version}/site-packages'
     if to_append not in sys.path:
         sys.path.append(to_append)
 
-    # 2. Ensure topiary-source/src is in path (for editable install)
+    # Ensure topiary-source/src is in path (for editable install)
     src_path = "/content/topiary-source/src"
     if os.path.exists(src_path) and src_path not in sys.path:
         sys.path.append(src_path)
