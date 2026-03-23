@@ -144,8 +144,8 @@ def initialize_environment():
     # Ensure site-packages is in path (condacolab usually handles this after restart)
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     to_append = f'/usr/local/lib/python{py_version}/site-packages'
-    if to_append not in sys.path:
-        sys.path.append(to_append)
+    if os.path.exists(to_append) and to_append not in sys.path:
+        sys.path.insert(0, to_append)
 
     # Ensure topiary-source/src is in path (for editable install)
     src_path = "/content/topiary-source/src"
