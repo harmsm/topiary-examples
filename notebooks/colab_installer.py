@@ -113,7 +113,9 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # We use --name base to update the current condacolab environment.
     # We use --no-cluster and --yes for non-interactive mode.
     # We use --keep-existing to use the binaries we seeded from cache.
-    install_cmd = "cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing"
+    # We use --python to ensure the environment matches the notebook's Python version.
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    install_cmd = f"cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing --python {py_version}"
     if not install_raxml:
         install_cmd += " --no-raxml"
     if not install_generax:
@@ -138,11 +140,17 @@ def initialize_environment():
     Initialize environment variables for topiary in Colab.
     """
     os.environ["TOPIARY_MAX_SLOTS"] = "1"
-    # Ensure site-packages is in path (condacolab usually handles this after restart)
+    # 1. Ensure site-packages is in path
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     to_append = f'/usr/local/lib/python{py_version}/site-packages'
     if to_append not in sys.path:
         sys.path.append(to_append)
+
+    # 2. Ensure topiary-source/src is in path (for editable install)
+    src_path = "/content/topiary-source/src"
+    if os.path.exists(src_path) and src_path not in sys.path:
+        sys.path.append(src_path)
+
     print("Environment initialized.")
 
 def set_working_directory(google_drive_directory):
