@@ -79,9 +79,9 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     os.chdir("/content/")
 
     # 1. Clone topiary
-    if os.path.exists("topiary"):
-        shutil.rmtree("topiary")
-    _run_cmd("git clone https://github.com/harmslab/topiary.git", "Cloning topiary")
+    if os.path.exists("topiary-source"):
+        shutil.rmtree("topiary-source")
+    _run_cmd("git clone https://github.com/harmslab/topiary.git topiary-source", "Cloning topiary")
 
     # 2. Seed bin_cache if provided
     bin_dir = "/usr/local/bin"
@@ -101,9 +101,9 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # We do this before installing so the patched files are used.
     print("Patching topiary for Colab...")
     files_to_patch = [
-        "topiary/src/topiary/generax/_generax.py",
-        "topiary/src/topiary/generax/_reconcile_bootstrap.py",
-        "topiary/src/topiary/_private/mpi/mpi.py"
+        "topiary-source/src/topiary/generax/_generax.py",
+        "topiary-source/src/topiary/generax/_reconcile_bootstrap.py",
+        "topiary-source/src/topiary/_private/mpi/mpi.py"
     ]
     for f in files_to_patch:
         if os.path.exists(f):
@@ -113,7 +113,7 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # We use --name base to update the current condacolab environment.
     # We use --no-cluster and --yes for non-interactive mode.
     # We use --keep-existing to use the binaries we seeded from cache.
-    install_cmd = "cd topiary && bash install.sh --name base --no-cluster --yes --keep-existing"
+    install_cmd = "cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing"
     if not install_raxml:
         install_cmd += " --no-raxml"
     if not install_generax:
@@ -121,7 +121,7 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     if ncbi_key:
         install_cmd += f" --ncbi-key {ncbi_key}"
     
-    _run_cmd(install_cmd, "Running topiary/install.sh")
+    _run_cmd(install_cmd, "Running topiary-source/install.sh")
 
     # 5. Update bin_cache after installation if needed
     if bin_cache:
@@ -145,14 +145,12 @@ def initialize_environment():
         sys.path.append(to_append)
     print("Environment initialized.")
 
-def mount_google_drive(google_drive_directory):
+def set_working_directory(google_drive_directory):
     """
     Mount Google Drive and change directory to a specific project folder.
     """
     google_drive_directory = google_drive_directory.strip()
     if google_drive_directory != "":
-        from google.colab import drive
-        drive.mount('/content/gdrive/')
         working_dir = f"/content/gdrive/MyDrive/{google_drive_directory}"
         os.makedirs(working_dir, exist_ok=True)
         os.chdir(working_dir)
