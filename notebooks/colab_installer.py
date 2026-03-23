@@ -52,14 +52,14 @@ def setup_condacolab():
         condacolab.install()
 
 def _run_cmd(cmd, description):
-    print(f"Running {description}... ", end="", flush=True)
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(f"{description}", flush=True)
+    result = subprocess.run(cmd, shell=True, capture_output=False, text=True)
     if result.returncode != 0:
         print("\nFailed!", flush=True)
         print(result.stdout, flush=True)
         print(result.stderr, flush=True)
         raise RuntimeError(f"Command failed: {description}")
-    print("Done.")
+    print(f"{description}... Done.", flush=True)
 
 def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, ncbi_key=None):
     """
