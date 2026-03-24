@@ -59,7 +59,9 @@ def _run_cmd(cmd, description):
     env["PYTHONPATH"] = ""
     env["PYTHONHOME"] = ""
     
-    result = subprocess.run(cmd, shell=True, capture_output=False, text=True, env=env)
+    result = subprocess.run(cmd, shell=True, capture_output=False, 
+                            text=True, env=env, stdout=sys.stdout, 
+                            stderr=sys.stderr)
     if result.returncode != 0:
         print("\nFailed!", flush=True)
         print(result.stdout, flush=True)
