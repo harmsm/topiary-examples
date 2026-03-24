@@ -53,7 +53,13 @@ def setup_condacolab():
 
 def _run_cmd(cmd, description):
     print(f"{description}", flush=True)
-    result = subprocess.run(cmd, shell=True, capture_output=False, text=True)
+    
+    # Clear variables that might confuse pip/conda about which python to use (important for Colab)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ""
+    env["PYTHONHOME"] = ""
+    
+    result = subprocess.run(cmd, shell=True, capture_output=False, text=True, env=env)
     if result.returncode != 0:
         print("\nFailed!", flush=True)
         print(result.stdout, flush=True)
