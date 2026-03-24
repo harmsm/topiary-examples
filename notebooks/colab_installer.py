@@ -59,14 +59,19 @@ def _run_cmd(cmd, description):
     env["PYTHONPATH"] = ""
     env["PYTHONHOME"] = ""
     
-    result = subprocess.run(cmd, shell=True, capture_output=False, 
-                            text=True, env=env, stdout=sys.stdout, 
-                            stderr=sys.stderr)
-    if result.returncode != 0:
+    # We use Popen and read line by line to ensure output is visible in Colab
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, 
+                               stderr=subprocess.STDOUT, text=True, env=env)
+    
+    for line in process.stdout:
+        print(line, end='', flush=True)
+    
+    process.wait()
+    
+    if process.returncode != 0:
         print("\nFailed!", flush=True)
-        print(result.stdout, flush=True)
-        print(result.stderr, flush=True)
         raise RuntimeError(f"Command failed: {description}")
+    
     print(f"{description}... Done.", flush=True)
 
 def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, ncbi_key=None):
