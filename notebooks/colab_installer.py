@@ -51,30 +51,38 @@ def setup_condacolab():
         import condacolab
         condacolab.install()
 
-def _run_cmd(cmd, description):
-    print(f"{description}", flush=True)
+def _run_cmd(cmd, description, verbose=False):
+    if verbose:
+        print(f"{description}", flush=True)
     
     # Clear variables that might confuse pip/conda about which python to use (important for Colab)
     env = os.environ.copy()
     env["PYTHONPATH"] = ""
     env["PYTHONHOME"] = ""
     
-    # We use Popen and read line by line to ensure output is visible in Colab
+    # We use Popen and read line by line to ensure output is visible in Colab if verbose
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, 
                                stderr=subprocess.STDOUT, text=True, env=env)
     
+    output = []
     for line in process.stdout:
-        print(line, end='', flush=True)
+        output.append(line)
+        if verbose:
+            print(line, end='', flush=True)
     
     process.wait()
     
     if process.returncode != 0:
+        if not verbose:
+             print("".join(output))
         print("\nFailed!", flush=True)
         raise RuntimeError(f"Command failed: {description}")
     
-    print(f"{description}... Done.", flush=True)
+    if verbose:
+        print(f"{description}... Done.", flush=True)
 
-def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, ncbi_key=None):
+def install_topiary(install_raxml=True, install_generax=True, 
+                    bin_cache=None, ncbi_key=None, verbose=False):
     """
     Install topiary and its dependencies using the official install.sh.
 
@@ -87,6 +95,8 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
         pre-compiled binaries for raxml-ng and generax.
     ncbi_key : str, optional
         NCBI API key to set during installation.
+    verbose : bool, default=False
+        whether to print all installation output.
     """
 
     os.chdir("/content/")
@@ -94,7 +104,8 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # 1. Clone topiary
     if os.path.exists("topiary-source"):
         shutil.rmtree("topiary-source")
-    _run_cmd("git clone https://github.com/harmslab/topiary.git topiary-source", "Cloning topiary")
+    _run_cmd("git clone https://github.com/harmslab/topiary.git topiary-source", 
+             "Cloning topiary", verbose=verbose)
 
     # 2. Seed bin_cache if provided
     bin_dir = "/usr/local/bin"
@@ -120,7 +131,8 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     ]
     for f in files_to_patch:
         if os.path.exists(f):
-             _run_cmd(fr"sed -i 's/\[\"mpirun\"/\[\"mpirun\",\"--allow-run-as-root\"/g' {f}", f"Patching {os.path.basename(f)}")
+             _run_cmd(fr"sed -i 's/\[\"mpirun\"/\[\"mpirun\",\"--allow-run-as-root\"/g' {f}", 
+                      f"Patching {os.path.basename(f)}", verbose=verbose)
 
     # 4. Run official install.sh
     # We use --name base to update the current condacolab environment.
@@ -136,7 +148,8 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     if ncbi_key:
         install_cmd += f" --ncbi-key {ncbi_key}"
     
-    _run_cmd(install_cmd, "Running topiary-source/install.sh")
+    print("Running topiary-source/install.sh. Please be patient.", flush=True)
+    _run_cmd(install_cmd, "Running topiary-source/install.sh", verbose=verbose)
 
     # 5. Update bin_cache after installation if needed
     if bin_cache:
