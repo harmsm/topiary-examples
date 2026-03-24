@@ -128,7 +128,7 @@ def install_topiary(install_raxml=True, install_generax=True, bin_cache=None, nc
     # We use --keep-existing to use the binaries we seeded from cache.
     # We use --python to ensure the environment matches the notebook's Python version.
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    install_cmd = f"cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing --python {py_version}"
+    install_cmd = f"cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing --python {py_version} --pip-python {sys.executable}"
     if not install_raxml:
         install_cmd += " --no-raxml"
     if not install_generax:
