@@ -33,7 +33,7 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
         "ncbi-blast-2.17.0+-x64-linux.tar.gz": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.17.0+-x64-linux.tar.gz",
         "muscle-linux-x86.v5.3": "https://github.com/rcedgar/muscle/releases/download/v5.3/muscle-linux-x86.v5.3",
         "generax-linux-x86.v2.1.3a": "https://github.com/harmslab/GeneRax/releases/download/v2.1.3a/generax-linux-x86.v2.1.3a",
-        "raxml-ng-linux-x86.v2.1.3a": "https://github.com/harmslab/raxml-ng/releases/download/v2.0.0a/raxml-ng-linux-x86.v2.1.3a"
+        "raxml-ng-linux-x86.v2.0.0a": "https://github.com/harmslab/raxml-ng/releases/download/v2.0.0a/raxml-ng-linux-x86.v2.0.0a"
     }
 
     for filename, url in tools.items():
@@ -53,7 +53,7 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
     # Others
     shutil.copy("muscle-linux-x86.v5.3", os.path.join(bin_dir, "muscle"))
     shutil.copy("generax-linux-x86.v2.1.3a", os.path.join(bin_dir, "generax"))
-    shutil.copy("raxml-ng-linux-x86.v2.1.3a", os.path.join(bin_dir, "raxml-ng"))
+    shutil.copy("raxml-ng-linux-x86.v2.0.0a", os.path.join(bin_dir, "raxml-ng"))
 
     # Make executable
     run_cmd(f"chmod 755 {bin_dir}/*")
@@ -87,5 +87,6 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
     if ncbi_api_key.strip() != "":
         os.environ['NCBI_API_KEY'] = ncbi_api_key.strip()
     
+    os.chdir("..")
     print("Setup complete.")
 
