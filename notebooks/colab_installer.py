@@ -74,7 +74,7 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
     # 6. Install Topiary
     try:
         import topiary
-    except ImportError:
+    except (ImportError,ModuleNotFoundError):
         if not os.path.exists("topiary-source"):
             run_cmd("git clone https://github.com/harmsm/topiary topiary-source")
         
