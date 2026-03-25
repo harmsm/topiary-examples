@@ -79,6 +79,7 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
             run_cmd("git clone https://github.com/harmsm/topiary topiary-source")
         
         os.chdir("topiary-source")
+        print(os.getcwd())
         run_cmd("pip install .")
         run_cmd("pip install coverage flake8 pytest genbadge pytest-mock")
         os.chdir("..")
