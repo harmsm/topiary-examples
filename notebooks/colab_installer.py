@@ -5,6 +5,7 @@ import sys
 
 def run_cmd(cmd, shell=True):
     """Utility to run shell commands from within python."""
+    print(f"Running: {cmd}")
     subprocess.run(cmd, shell=shell, check=True)
 
 def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
@@ -69,19 +70,28 @@ def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
         "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM": "1"
     })
     
-    run_cmd("pip install mpi4py")
+    print("Installing mpi4py...")
+    run_cmd(f"{sys.executable} -m pip install mpi4py")
 
     # 6. Install Topiary
     try:
         import topiary
     except (ImportError,ModuleNotFoundError):
+        # If topiary-source exists but is invalid (e.g. interrupted clone), remove it
+        if os.path.exists("topiary-source"):
+            if not os.path.exists(os.path.join("topiary-source","pyproject.toml")):
+                print("topiary-source found but seems invalid. Removing and re-cloning...")
+                shutil.rmtree("topiary-source")
+
         if not os.path.exists("topiary-source"):
+            print("Cloning topiary source...")
             run_cmd("git clone https://github.com/harmsm/topiary topiary-source")
         
         os.chdir("topiary-source")
-        print(os.getcwd())
-        run_cmd("pip install .")
-        run_cmd("pip install coverage flake8 pytest genbadge pytest-mock")
+        print("Installing topiary...")
+        run_cmd(f"{sys.executable} -m pip install .")
+        print("Installing dev dependencies...")
+        run_cmd(f"{sys.executable} -m pip install coverage flake8 pytest genbadge pytest-mock")
         os.chdir("..")
 
     # Final Config
