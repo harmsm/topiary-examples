@@ -1,192 +1,91 @@
-"""
-Script to install topiary in a google colab notebook. This requires two cells
-that, at a minimum, look like: 
-
-Cell #1:
-
-#-------------------------------------------------------------------------------
-import colab_installer
-colab_installer.setup_condacolab()
-#-------------------------------------------------------------------------------
-
-Cell #2:
-#-------------------------------------------------------------------------------
-import colab_installer
-colab_installer.install_topiary(install_raxml=True,
-                                install_generax=True,
-                                bin_cache="/content/gdrive/MyDrive/topiary_bin")
-
-import topiary
-import numpy as np
-import pandas as pd
 import os
-os.chdir("/content/")
-topiary._in_notebook = "colab"
-colab_installer.initialize_environment()
-colab_installer.mount_google_drive(google_drive_directory)
-#-------------------------------------------------------------------------------
-
-Note: this script uses condacolab to set up a Python 3.12 environment (2025/03/16). 
-
-"""
-
-import sys
 import subprocess
-import os
 import shutil
-import time
-from tqdm.auto import tqdm
+import sys
 
-def setup_condacolab():
-    """
-    Install and initialize condacolab. This will restart the kernel.
-    """
-    try:
-        import condacolab
-        condacolab.check()
-        print("condacolab already installed and initialized.")
-    except (ImportError, Exception):
-        print("Installing condacolab. This will restart the kernel. Please re-run the next cell after restart.", flush=True)
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "condacolab"], check=True)
-        import condacolab
-        condacolab.install()
+def run_cmd(cmd, shell=True):
+    """Utility to run shell commands from within python."""
+    subprocess.run(cmd, shell=shell, check=True)
 
-def _run_cmd(cmd, description, verbose=False):
-    if verbose:
-        print(f"{description}", flush=True)
-    
-    # Clear variables that might confuse pip/conda about which python to use (important for Colab)
-    env = os.environ.copy()
-    env["PYTHONPATH"] = ""
-    env["PYTHONHOME"] = ""
-    
-    # We use Popen and read line by line to ensure output is visible in Colab if verbose
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, 
-                               stderr=subprocess.STDOUT, text=True, env=env)
-    
-    output = []
-    for line in process.stdout:
-        output.append(line)
-        if verbose:
-            print(line, end='', flush=True)
-    
-    process.wait()
-    
-    if process.returncode != 0:
-        if not verbose:
-             print("".join(output))
-        print("\nFailed!", flush=True)
-        raise RuntimeError(f"Command failed: {description}")
-    
-    if verbose:
-        print(f"{description}... Done.", flush=True)
+def setup_topiary_stack(google_drive_directory="", ncbi_api_key=""):
 
-def install_topiary(install_raxml=True, install_generax=True, 
-                    bin_cache=None, ncbi_key=None, verbose=False):
-    """
-    Install topiary and its dependencies using the official install.sh.
-
-    install_raxml : bool, default=True
-        whether to install raxml-ng
-    install_generax : bool, default=True
-        whether to install generax
-    bin_cache : str, optional
-        path to a directory (e.g. on Google Drive) to store and retrieve 
-        pre-compiled binaries for raxml-ng and generax.
-    ncbi_key : str, optional
-        NCBI API key to set during installation.
-    verbose : bool, default=False
-        whether to print all installation output.
-    """
-
-    os.chdir("/content/")
-
-    # 1. Clone topiary
-    if os.path.exists("topiary-source"):
-        shutil.rmtree("topiary-source")
-    _run_cmd("git clone https://github.com/harmslab/topiary.git topiary-source", 
-             "Cloning topiary", verbose=verbose)
-
-    # 2. Seed bin_cache if provided
-    bin_dir = "/usr/local/bin"
-    if bin_cache:
-        bin_cache = os.path.abspath(bin_cache)
-        if os.path.exists(os.path.join(bin_cache, "raxml-ng")):
-            print("Seeding raxml-ng from cache...")
-            shutil.copy(os.path.join(bin_cache, "raxml-ng"), os.path.join(bin_dir, "raxml-ng"))
-            os.chmod(os.path.join(bin_dir, "raxml-ng"), 0o755)
-        
-        if os.path.exists(os.path.join(bin_cache, "generax")):
-            print("Seeding generax from cache...")
-            shutil.copy(os.path.join(bin_cache, "generax"), os.path.join(bin_dir, "generax"))
-            os.chmod(os.path.join(bin_dir, "generax"), 0o755)
-
-    # 3. Patch topiary for Colab (mpirun --allow-run-as-root)
-    # We do this before installing so the patched files are used.
-    print("Patching topiary for Colab...")
-    files_to_patch = [
-        "topiary-source/src/topiary/generax/_generax.py",
-        "topiary-source/src/topiary/generax/_reconcile_bootstrap.py",
-        "topiary-source/src/topiary/_private/mpi/mpi.py"
-    ]
-    for f in files_to_patch:
-        if os.path.exists(f):
-             _run_cmd(fr"sed -i 's/\[\"mpirun\"/\[\"mpirun\",\"--allow-run-as-root\"/g' {f}", 
-                      f"Patching {os.path.basename(f)}", verbose=verbose)
-
-    # 4. Run official install.sh
-    # We use --name base to update the current condacolab environment.
-    # We use --no-cluster and --yes for non-interactive mode.
-    # We use --keep-existing to use the binaries we seeded from cache.
-    # We use --python to ensure the environment matches the notebook's Python version.
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    install_cmd = f"cd topiary-source && bash install.sh --name base --no-cluster --yes --keep-existing --python {py_version} --pip-python {sys.executable}"
-    if not install_raxml:
-        install_cmd += " --no-raxml"
-    if not install_generax:
-        install_cmd += " --no-generax"
-    if ncbi_key:
-        install_cmd += f" --ncbi-key {ncbi_key}"
-    
-    print("Running topiary-source/install.sh. Please be patient.", flush=True)
-    _run_cmd(install_cmd, "Running topiary-source/install.sh", verbose=verbose)
-
-    # 5. Update bin_cache after installation if needed
-    if bin_cache:
-        os.makedirs(bin_cache, exist_ok=True)
-        if install_raxml and os.path.exists(os.path.join(bin_dir, "raxml-ng")):
-            shutil.copy(os.path.join(bin_dir, "raxml-ng"), os.path.join(bin_cache, "raxml-ng"))
-        if install_generax and os.path.exists(os.path.join(bin_dir, "generax")):
-            shutil.copy(os.path.join(bin_dir, "generax"), os.path.join(bin_cache, "generax"))
-
-    print("\nInstallation complete! Topiary is ready to use.")
-
-def initialize_environment():
-    """
-    Initialize environment variables for topiary in Colab.
-    """
-    os.environ["TOPIARY_MAX_SLOTS"] = "1"
-    
-    # Ensure site-packages is in path (condacolab usually handles this after restart)
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    to_append = f'/usr/local/lib/python{py_version}/site-packages'
-    if os.path.exists(to_append) and to_append not in sys.path:
-        sys.path.insert(0, to_append)
-
-    # Ensure topiary-source/src is in path (for editable install)
-    src_path = "/content/topiary-source/src"
-    if os.path.exists(src_path) and src_path not in sys.path:
-        sys.path.append(src_path)
-
-    print("Environment initialized.")
-
-def set_working_directory(google_drive_directory):
-    """
-    Mount Google Drive and change directory to a specific project folder.
-    """
+    # 1. Create working directory & mount drive
     google_drive_directory = google_drive_directory.strip()
     if google_drive_directory != "":
+        from google.colab import drive
+        drive.mount('/content/gdrive')
         working_dir = f"/content/gdrive/MyDrive/{google_drive_directory}"
         os.makedirs(working_dir, exist_ok=True)
         os.chdir(working_dir)
-    print(f"Working directory: {os.getcwd()}")
+        
+    os.makedirs("src", exist_ok=True)
+    os.chdir("src")
+
+    # 2. Setup Binary Directory
+    bin_dir = "/content/bin"
+    os.makedirs(bin_dir, exist_ok=True)
+    if bin_dir not in os.environ['PATH']:
+        os.environ['PATH'] = f"{bin_dir}:{os.environ['PATH']}"
+    os.environ['BIN_DIR'] = bin_dir
+
+    # 3. Download and install tools
+    tools = {
+        "ncbi-blast-2.17.0+-x64-linux.tar.gz": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.17.0+-x64-linux.tar.gz",
+        "muscle-linux-x86.v5.3": "https://github.com/rcedgar/muscle/releases/download/v5.3/muscle-linux-x86.v5.3",
+        "generax-linux-x86.v2.1.3a": "https://github.com/harmslab/GeneRax/releases/download/v2.1.3a/generax-linux-x86.v2.1.3a",
+        "raxml-ng-linux-x86.v2.1.3a": "https://github.com/harmslab/raxml-ng/releases/download/v2.0.0a/raxml-ng-linux-x86.v2.1.3a"
+    }
+
+    for filename, url in tools.items():
+        if not os.path.exists(filename):
+            print(f"Downloading {filename}...")
+            run_cmd(f"wget {url}")
+
+    # 4. Extract and Move Binaries
+    # Blast
+    if os.path.exists("ncbi-blast-2.17.0+"):
+        for f in os.listdir("ncbi-blast-2.17.0+/bin"):
+            shutil.copy(os.path.join("ncbi-blast-2.17.0+/bin", f), bin_dir)
+    else:
+        run_cmd("tar -zxf ncbi-blast-2.17.0+-x64-linux.tar.gz")
+        run_cmd(f"cp ncbi-blast-2.17.0+/bin/* {bin_dir}/")
+
+    # Others
+    shutil.copy("muscle-linux-x86.v5.3", os.path.join(bin_dir, "muscle"))
+    shutil.copy("generax-linux-x86.v2.1.3a", os.path.join(bin_dir, "generax"))
+    shutil.copy("raxml-ng-linux-x86.v2.1.3a", os.path.join(bin_dir, "raxml-ng"))
+
+    # Make executable
+    run_cmd(f"chmod 755 {bin_dir}/*")
+
+    # 5. System dependencies and MPI
+    print("Installing system dependencies...")
+    run_cmd("apt-get update && apt-get install -y libopenmpi-dev openmpi-bin")
+    
+    os.environ.update({
+        "TOPIARY_MAX_SLOTS": "2",
+        "TOPIARY_MPI_OVERSUBSCRIBE": "1",
+        "OMPI_ALLOW_RUN_AS_ROOT": "1",
+        "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM": "1"
+    })
+    
+    run_cmd("pip install mpi4py")
+
+    # 6. Install Topiary
+    try:
+        import topiary
+    except ImportError:
+        if not os.path.exists("topiary-source"):
+            run_cmd("git clone https://github.com/harmsm/topiary topiary-source")
+        
+        os.chdir("topiary-source")
+        run_cmd("pip install .")
+        run_cmd("pip install coverage flake8 pytest genbadge pytest-mock")
+        os.chdir("..")
+
+    # Final Config
+    if ncbi_api_key.strip() != "":
+        os.environ['NCBI_API_KEY'] = ncbi_api_key.strip()
+    
+    print("Setup complete.")
+
